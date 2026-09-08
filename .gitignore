@@ -1,0 +1,17 @@
+node_modules/
+dist/
+
+# Never commit credentials. Tokens live in ~/.gmail-multi-mcp/, but a stray
+# .env in the project is the classic way a client secret reaches a public repo.
+.env
+.env.*
+!.env.example
+
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.tsbuildinfo
+coverage/
