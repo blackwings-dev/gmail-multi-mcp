@@ -154,6 +154,24 @@ export interface MultiAccountSearchResult {
   failures?: { account: AccountId; error: string }[];
 }
 
+/**
+ * The outcome of moving a message to the bin, or bringing it back.
+ *
+ * `trashed` is read from the labels Gmail returns AFTER the change, not from
+ * what we asked for: it reports what happened rather than what was intended.
+ */
+export interface TrashResult {
+  account: AccountId;
+  id: string;
+  threadId: string;
+  /** True when the message now carries the TRASH label. */
+  trashed: boolean;
+  labelIds: string[];
+  subject: string | null;
+  from: string | null;
+  date: string | null;
+}
+
 export interface SendResult {
   account: AccountId;
   id: string;

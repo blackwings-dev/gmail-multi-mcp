@@ -1,5 +1,5 @@
 /**
- * The MCP server: twenty-six tools over N Google accounts — Gmail, Drive, Calendar
+ * The MCP server: twenty-eight tools over N Google accounts — Gmail, Drive, Calendar
  * and Contacts.
  *
  * ⚠️ NOTHING IN THIS PROCESS MAY WRITE TO STDOUT.
@@ -22,6 +22,8 @@ import {
   probeAccount,
   replyToMessage,
   sendMessage,
+  trashMessage,
+  untrashMessage,
 } from './gmail/client.js';
 import { searchAccount, searchAllAccounts } from './gmail/search.js';
 import { missingScopes } from './auth/oauth.js';
@@ -525,6 +527,49 @@ export function createMcpServer(): McpServer {
         add_labels?: string[];
         remove_labels?: string[];
       }) => ok(await labelMessage(account, message_id, add_labels ?? [], remove_labels ?? [])),
+    ),
+  );
+
+  // --- trash_email ---------------------------------------------------------
+  server.registerTool(
+    'trash_email',
+    {
+      title: 'Move an email to the bin',
+      description:
+        'Move a message to the bin. This is NOT a permanent delete: the message keeps ' +
+        'existing and untrash_email brings it back. Gmail does empty the bin by itself ' +
+        'after 30 days, so it becomes permanent eventually — treat it as reversible for ' +
+        'a month, not for ever. This server has no permanent-delete tool at all. The ' +
+        'answer names the message that moved, so a wrong id is visible immediately.',
+      inputSchema: {
+        account: accountArg,
+        message_id: z.string().min(1).describe('Message to move to the bin.'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+    },
+    guard(async ({ account, message_id }: { account: string; message_id: string }) =>
+      ok(await trashMessage(account, message_id)),
+    ),
+  );
+
+  // --- untrash_email -------------------------------------------------------
+  server.registerTool(
+    'untrash_email',
+    {
+      title: 'Recover an email from the bin',
+      description:
+        'Take a message back out of the bin and restore the labels it had. Only works ' +
+        'while the message is still there — once Gmail has emptied the bin, after about ' +
+        '30 days, there is nothing left to recover. Use search_emails with "in:trash" to ' +
+        'find what is in there.',
+      inputSchema: {
+        account: accountArg,
+        message_id: z.string().min(1).describe('Message to take out of the bin.'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    },
+    guard(async ({ account, message_id }: { account: string; message_id: string }) =>
+      ok(await untrashMessage(account, message_id)),
     ),
   );
 

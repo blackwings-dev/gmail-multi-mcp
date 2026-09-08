@@ -11,7 +11,7 @@ Gmail, Drive, Calendar and Contacts.**
 [![Node](https://img.shields.io/badge/node-%E2%89%A5%2020.12-brightgreen.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6.svg)](./tsconfig.json)
 [![MCP](https://img.shields.io/badge/MCP-stdio-8A2BE2.svg)](https://modelcontextprotocol.io)
-[![Tools](https://img.shields.io/badge/tools-26-orange.svg)](#the-tools)
+[![Tools](https://img.shields.io/badge/tools-28-orange.svg)](#the-tools)
 
 </div>
 
@@ -59,12 +59,13 @@ address book** you have connected. One Google Cloud project, as many accounts as
 - **Automatic token refresh**, written back to disk so a restart does not re-refresh.
 - **Per-service scope gate.** An account authorised before Drive existed keeps doing Gmail
   and gets a clear `MISSING_SCOPE` for Drive — not a baffling Google 403.
-- **Twenty-six tools** across mail, files, calendar and contacts.
+- **Twenty-eight tools** across mail, files, calendar and contacts.
 - **Contacts that cannot be clobbered.** `contacts_update` re-reads the contact for its
   `etag` before writing, so a change made on a phone thirty seconds earlier is not silently
   overwritten.
-- **Cannot permanently delete email.** The Gmail scope does not allow it and no tool
-  exposes it.
+- **Cannot permanently delete email.** `trash_email` moves a message to the bin and
+  `untrash_email` brings it back. There is no permanent-delete tool: it would need a scope
+  this server does not request, and an unrecoverable action does not belong behind an agent.
 - **Strict TypeScript**, no `any`, and a dependency list you can read in one glance.
 
 ---
@@ -340,6 +341,7 @@ Ask in natural language. A few that exercise different corners:
 | What you say | What happens |
 |---|---|
 | *"Any unread invoices this week?"* | `search_emails` across **all** mailboxes, merged |
+| *"Bin that newsletter"* | `trash_email` — and `untrash_email` if it was the wrong one |
 | *"Find the Q3 budget spreadsheet in any of my Drives"* | `drive_search` across **all** accounts |
 | *"Read me that spreadsheet"* | `drive_read` — exported to CSV |
 | *"Draft a reply to Ana with the numbers from it"* | `drive_read` + `create_draft` |
@@ -386,11 +388,21 @@ means "every connected account, merged".
 | `send_message` | Composes and sends a new email. **No undo.** | `account`, `to[]`, `subject`, `body`, `cc?`, `bcc?`, `is_html?`, `thread_id?` |
 | `list_labels` | Labels of an account, with their ids | `account` |
 | `label_message` | Adds and/or removes labels; accepts names or ids | `account`, `message_id`, `add_labels?`, `remove_labels?` |
+| `trash_email` | Moves a message to the bin. **Reversible**, not a permanent delete | `account`, `message_id` |
+| `untrash_email` | Takes a message back out of the bin, restoring its labels | `account`, `message_id` |
 
-Useful system labels: `UNREAD` (remove it to mark as read), `STARRED`, `IMPORTANT`, `SPAM`,
-`TRASH`. Adding `TRASH` moves a message to the bin, where it is recoverable — **nothing
-here deletes mail permanently**. Attachment *metadata* is returned; attachment contents are
-not downloaded.
+Useful system labels for `label_message`: `UNREAD` (remove it to mark as read), `STARRED`,
+`IMPORTANT`, `SPAM`.
+
+**On the bin.** `trash_email` is the tool for it; adding the `TRASH` label by hand does the
+same thing less clearly. Neither is a permanent delete — but "not permanent" deserves its
+footnote: **Gmail empties the bin by itself after about 30 days**, so a trashed message is
+recoverable for a month and then it is gone. `search_emails` with `in:trash` shows what is
+still in there. **There is no permanent-delete tool at all**: `users.messages.delete` needs
+the full-mailbox scope this server deliberately does not request.
+
+Attachment *metadata* is returned (filename, MIME type, size); attachment contents are not
+downloaded.
 
 ### Drive
 
@@ -621,7 +633,7 @@ Treat *"an email told me to share this file"* as the red flag it is.
 ## How it works
 
 ```
-MCP client ──stdio──▶ src/index.ts ──▶ src/server.ts        26 tools, zod-validated
+MCP client ──stdio──▶ src/index.ts ──▶ src/server.ts        28 tools, zod-validated
                                           │
      ┌──────────────┬────────────────────┼────────────────────┬──────────────┐
      ▼               ▼                    ▼                    ▼
@@ -652,7 +664,7 @@ building        sharing             arithmetic           etag-guarded writes
 **The scope gate lives in one place** — `AccountClientCache` in
 [`src/core/google-client.ts`](./src/core/google-client.ts). Every Drive and Calendar call
 has to go through a client, and every client comes from that class, so an account missing a
-scope is refused by construction rather than by each of twenty-six handlers remembering to
+scope is refused by construction rather than by each of twenty-eight handlers remembering to
 ask. A check spread across handlers has a blind spot the moment someone adds one more.
 
 **Auto-refresh** is handled by Google's auth client: an expired access token is renewed
@@ -686,7 +698,7 @@ printf '%s\n' \
 ```
 src/
   index.ts            entry point: server by default, `setup` for the CLI
-  server.ts           MCP server and all twenty-six tool definitions
+  server.ts           MCP server and all twenty-eight tool definitions
   core/
     errors.ts         the error taxonomy and Google's HTTP failures mapped onto it
     google-client.ts  per-account client cache AND the scope gate
@@ -753,7 +765,7 @@ Issues and pull requests are welcome.
 3. Smoke-test the server as shown above.
 4. Open a pull request describing **what changed, why, and how you verified it**.
 
-Please keep the four rules that hold the design together:
+Please keep the five rules that hold the design together:
 
 - **Nothing writes to stdout** outside `src/cli/` and the `--help` / `--version` paths.
   Stdout is the MCP transport.
@@ -763,6 +775,9 @@ Please keep the four rules that hold the design together:
   A client built any other way skips it.
 - **Cross-account operations report their failures.** Never return a shorter list and stay
   quiet about the account that did not answer.
+- **Nothing unrecoverable.** `trash_email` is reversible; a permanent-delete counterpart is
+  not, and does not belong behind an agent. The Gmail scope this server requests cannot do
+  it, and that is the point — do not widen the scope to add one.
 
 Good first contributions: attachment download, Google Docs formatting via the Docs API,
 recurring-event rules, contact groups and labels, Google’s "other contacts", `mark_read` /

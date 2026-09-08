@@ -19,6 +19,7 @@ import type {
   OutgoingMessage,
   SendResult,
   ThreadResult,
+  TrashResult,
 } from './types.js';
 import { GmailMcpError } from './types.js';
 
@@ -505,4 +506,64 @@ export async function probeAccount(reference: AccountId): Promise<{
   } catch (error) {
     throw mapGmailError(error, email);
   }
+}
+
+/**
+ * Moves a message to the bin, or takes it back out.
+ *
+ * ⚠️ "Not permanent" deserves a footnote: Gmail empties the bin on its own
+ * after 30 days, so trashing is reversible for a month and then it is not.
+ * There is deliberately no permanent-delete tool here — `users.messages.delete`
+ * needs the full-mailbox scope this server does not request, and an
+ * unrecoverable action does not belong behind an agent.
+ *
+ * The message is read first so the answer can say WHICH message moved. "Done"
+ * is a poor confirmation when the id came from a model.
+ */
+async function setTrashed(
+  reference: AccountId,
+  messageId: string,
+  trashed: boolean,
+): Promise<TrashResult> {
+  const { email, api } = await gmailFor(reference);
+
+  try {
+    const before = await api.users.messages.get({
+      userId: 'me',
+      id: messageId,
+      format: 'metadata',
+      metadataHeaders: ['From', 'Subject', 'Date'],
+    });
+    const summary = summarizeMessage(email, before.data);
+
+    const response = trashed
+      ? await api.users.messages.trash({ userId: 'me', id: messageId })
+      : await api.users.messages.untrash({ userId: 'me', id: messageId });
+
+    const labelIds = response.data.labelIds ?? [];
+
+    return {
+      account: email,
+      id: response.data.id ?? messageId,
+      threadId: response.data.threadId ?? summary.threadId,
+      // Reported from the labels that came back, not from the intent.
+      trashed: labelIds.includes('TRASH'),
+      labelIds,
+      subject: summary.subject,
+      from: summary.from,
+      date: summary.date,
+    };
+  } catch (error) {
+    throw mapGmailError(error, email);
+  }
+}
+
+/** Moves a message to the bin. Recoverable with `untrashMessage` for 30 days. */
+export function trashMessage(reference: AccountId, messageId: string): Promise<TrashResult> {
+  return setTrashed(reference, messageId, true);
+}
+
+/** Takes a message back out of the bin, restoring its previous labels. */
+export function untrashMessage(reference: AccountId, messageId: string): Promise<TrashResult> {
+  return setTrashed(reference, messageId, false);
 }
