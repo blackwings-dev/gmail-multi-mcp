@@ -38,7 +38,7 @@ function printUsage(): void {
       `  gmail-multi-mcp setup     Add, list or remove Gmail accounts\n` +
       `  gmail-multi-mcp --help    Show this message\n` +
       `  gmail-multi-mcp --version Print the version\n\n` +
-      `Docs: https://github.com/<your-username>/gmail-multi-mcp\n`,
+      `Docs: https://github.com/blackwings-dev/gmail-multi-mcp\n`,
   );
 }
 
