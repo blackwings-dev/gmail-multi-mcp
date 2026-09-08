@@ -21,6 +21,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { auth, gmail as gmailApi } from '@googleapis/gmail';
 import type { AccountId, OAuthCredentials, StoredTokens } from '../gmail/types.js';
 import { GmailMcpError } from '../gmail/types.js';
+import { FAVICON_DATA_URI } from './icon.js';
 import { readConfig, readTokens, writeTokens } from './token-store.js';
 
 /** The exact OAuth2 client class `@googleapis/gmail` expects. */
@@ -337,7 +338,9 @@ function escapeHtml(value: string): string {
 
 function renderPage(title: string, detail: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
+<link rel="icon" href="${FAVICON_DATA_URI}">
 <style>
   body{font:16px/1.5 system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#fafafa;color:#111}
   main{max-width:26rem;padding:2rem;text-align:center}

@@ -1,0 +1,7 @@
+Icono MCP Multi-Account Google — Black Wings (opción 1b)
+
+icono-mcp-google.svg / .png          Versión principal con "MCP" (≥ 128 px)
+icono-mcp-google-sin-texto.svg / .png Versión pequeña sin texto (favicon, avatar, ≤ 128 px)
+
+Colores: fondo #111111 · anillo #FFFFFF · cuentas #4285F4 #EA4335 #FBBC04 #34A853
+Tipografía: Geist Bold (letter-spacing 2)

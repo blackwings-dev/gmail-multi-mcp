@@ -15,3 +15,7 @@ Thumbs.db
 .vscode/
 *.tsbuildinfo
 coverage/
+
+# El paquete de iconos llega en ZIP y trae ficheros que no son iconos.
+# Los assets se versionan sueltos en assets/, no el archivo comprimido.
+*.zip

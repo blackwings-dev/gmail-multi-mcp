@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./assets/icono-mcp-google.png" alt="gmail-multi-mcp" width="128" height="128">
+
 # gmail-multi-mcp
 
 **An MCP server that connects your AI assistant to *several* Google accounts at once —
@@ -709,7 +711,12 @@ src/
     types.ts          Contacts domain types
   cli/
     setup.ts          interactive setup (chalk)
+assets/             the project icon: PNG and SVG, with and without wordmark
 ```
+
+The SVG in `assets/` is the master. Its geometry is also inlined in
+`src/auth/icon.ts` as the favicon of the local OAuth callback page — the only web
+page this server ever serves.
 
 TypeScript runs with `strict` plus `noUncheckedIndexedAccess`, `noImplicitReturns`,
 `noUnusedLocals` and `verbatimModuleSyntax`. There is no `any` in the source.
