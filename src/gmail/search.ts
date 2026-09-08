@@ -8,6 +8,7 @@
 
 import type { gmail_v1 } from '@googleapis/gmail';
 import { readConfig } from '../auth/token-store.js';
+import { mapWithConcurrency } from '../core/concurrency.js';
 import { gmailFor, mapGmailError, summarizeMessage } from './client.js';
 import type {
   AccountId,
@@ -40,28 +41,6 @@ function clampMaxResults(requested: number | undefined): number {
   if (requested === undefined) return DEFAULT_MAX_RESULTS;
   if (!Number.isFinite(requested) || requested < 1) return DEFAULT_MAX_RESULTS;
   return Math.min(Math.floor(requested), MAX_RESULTS_CAP);
-}
-
-/** Runs `task` over `items` with a fixed number of workers, preserving order. */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  task: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let cursor = 0;
-
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    for (;;) {
-      const index = cursor++;
-      const item = items[index];
-      if (index >= items.length || item === undefined) return;
-      results[index] = await task(item, index);
-    }
-  });
-
-  await Promise.all(workers);
-  return results;
 }
 
 async function hydrate(

@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import open from 'open';
 
-import { runAuthorizationFlow } from '../auth/oauth.js';
+import { missingScopes, runAuthorizationFlow } from '../auth/oauth.js';
 import {
   CONFIG_PATH,
   ROOT_DIR,
@@ -26,7 +26,23 @@ import {
 import { probeAccount } from '../gmail/client.js';
 import { GmailMcpError } from '../gmail/types.js';
 
-const rl = createInterface({ input: stdin, output: stdout });
+/**
+ * The readline interface is created on FIRST USE, not at module load.
+ *
+ * Created eagerly it starts consuming stdin immediately, so any async work that
+ * happens before the first prompt — reading the config, checking which accounts
+ * are missing scopes — drains piped input and the answers are gone before
+ * anything asks for them. Interactively you would never notice; with a pipe the
+ * CLI just says the input closed and exits.
+ */
+let rl: ReturnType<typeof createInterface> | null = null;
+
+function input(): ReturnType<typeof createInterface> {
+  if (!rl) {
+    rl = createInterface({ input: stdin, output: stdout });
+  }
+  return rl;
+}
 
 /**
  * Raised when input ends: Ctrl+D, a closed pipe, or a non-interactive shell.
@@ -41,11 +57,6 @@ class SetupAborted extends Error {
     this.name = 'SetupAborted';
   }
 }
-
-let inputClosed = false;
-rl.on('close', () => {
-  inputClosed = true;
-});
 
 function line(text = ''): void {
   stdout.write(`${text}\n`);
@@ -74,13 +85,13 @@ function dim(text: string): void {
 }
 
 async function ask(question: string): Promise<string> {
-  if (inputClosed) throw new SetupAborted();
+  // No pre-check on `inputClosed`: a closed stream can still have a buffered
+  // line waiting, and refusing to read it would throw away a real answer.
   try {
-    const answer = await rl.question(chalk.bold(`${question} `));
+    const answer = await input().question(chalk.bold(`${question} `));
     return answer.trim();
   } catch {
     // readline closed underneath us: treat it as "the user is done".
-    inputClosed = true;
     throw new SetupAborted();
   }
 }
@@ -93,7 +104,7 @@ async function confirm(question: string): Promise<boolean> {
 function banner(): void {
   line();
   line(chalk.bold.magenta('  gmail-multi-mcp'));
-  dim('  One Google Cloud project. As many Gmail accounts as you need.');
+  dim('  Gmail, Drive, Calendar and Contacts. One Google Cloud project, as many accounts.');
   line();
   dim(`  config  ${CONFIG_PATH}`);
   dim(`  tokens  ${TOKENS_DIR}`);
@@ -148,7 +159,7 @@ async function ensureCredentials(): Promise<boolean> {
 }
 
 async function addAccount(): Promise<void> {
-  heading('Add a Gmail account');
+  heading('Add a Google account');
   line('A browser window will open. Sign in with the account you want to add.');
   dim('Adding a second account? Sign out of Google first, or use a private window.');
   line();
@@ -190,6 +201,42 @@ async function addAccount(): Promise<void> {
   }
 }
 
+/** Turns a scope URL into the product name a person would recognise. */
+function serviceOf(scope: string): string {
+  if (scope.includes('/gmail')) return 'Gmail';
+  if (scope.includes('/drive')) return 'Drive';
+  if (scope.includes('/calendar')) return 'Calendar';
+  if (scope.includes('/contacts')) return 'Contacts';
+  return scope;
+}
+
+/**
+ * Says out loud that an account is only half connected.
+ *
+ * An account authorised before Drive and Calendar existed here keeps working for
+ * Gmail and fails for the rest, which from the outside looks like the new tools
+ * are broken. Nothing about it is visible unless something says so: the token
+ * file is valid, it refreshes fine, and the scopes it lacks are simply absent.
+ */
+async function warnAboutStaleAccounts(): Promise<void> {
+  const config = await readConfig();
+  const stale: string[] = [];
+
+  for (const account of config.accounts) {
+    const tokens = await readTokens(account.email);
+    if (tokens && missingScopes(tokens.scope).length > 0) stale.push(account.email);
+  }
+  if (stale.length === 0) return;
+
+  line();
+  warn(`${stale.length} account${stale.length === 1 ? '' : 's'} need re-authorising:`);
+  for (const email of stale) line(`    ${chalk.yellow('·')} ${email}`);
+  dim('  They were connected before some of these services were supported here, so part');
+  dim('  of the toolset will refuse them. A refresh cannot add the missing scopes: Google');
+  dim('  binds a refresh token to the scopes it was issued with. Choose 1 and add each');
+  dim('  account again — it re-consents and overwrites in place, nothing to remove first.');
+}
+
 async function listAccounts(): Promise<void> {
   heading('Configured accounts');
   const config = await readConfig();
@@ -210,6 +257,16 @@ async function listAccounts(): Promise<void> {
       tokens.expiryDate !== null && tokens.expiryDate <= Date.now()
         ? chalk.yellow(' — access token expired, will refresh')
         : '';
+
+    const missing = missingScopes(tokens.scope);
+    if (missing.length > 0) {
+      line(`  ${chalk.yellow('●')} ${account.email}${label}${expired}`);
+      line(
+        `      ${chalk.yellow('needs re-authorising')} — no access to ` +
+          `${missing.map(serviceOf).join(' or ')}. Choose 1 and add it again.`,
+      );
+      continue;
+    }
     line(`  ${chalk.green('●')} ${account.email}${label}${expired}`);
   }
 }
@@ -282,10 +339,12 @@ export async function runSetup(): Promise<void> {
   banner();
 
   if (!(await ensureCredentials())) {
-    rl.close();
+    rl?.close();
     process.exitCode = 1;
     return;
   }
+
+  await warnAboutStaleAccounts();
 
   try {
     await menuLoop();
@@ -294,14 +353,14 @@ export async function runSetup(): Promise<void> {
     line();
     dim('Input closed. Nothing was changed.');
   } finally {
-    rl.close();
+    rl?.close();
   }
 }
 
 async function menuLoop(): Promise<void> {
   for (;;) {
     heading('What now?');
-    line(`  ${chalk.bold('1')}  Add a Gmail account`);
+    line(`  ${chalk.bold('1')}  Add a Google account`);
     line(`  ${chalk.bold('2')}  List accounts`);
     line(`  ${chalk.bold('3')}  Remove an account`);
     line(`  ${chalk.bold('4')}  Show MCP client configuration`);

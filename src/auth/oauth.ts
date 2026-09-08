@@ -27,11 +27,59 @@ import { readConfig, readTokens, writeTokens } from './token-store.js';
 export type GoogleOAuthClient = InstanceType<typeof auth.OAuth2>;
 
 /**
- * A single scope covers every tool this server exposes: read, drafts, send and
- * labels. `gmail.modify` is everything except permanent deletion — which this
- * server deliberately cannot do.
+ * Gmail: read, drafts, send and labels. `gmail.modify` is everything except
+ * permanent deletion — which this server deliberately cannot do.
  */
-export const SCOPES = ['https://www.googleapis.com/auth/gmail.modify'] as const;
+export const GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.modify'] as const;
+
+/**
+ * Drive: full access to the user's files.
+ *
+ * ⚠️ This is a RESTRICTED scope, the same tier Google applies to `gmail.modify`.
+ * `drive.file` — access limited to files this app created or the user explicitly
+ * picked — is not restricted and would keep verification simpler, but it cannot
+ * see files the user already has, so `drive_search` over an existing Drive would
+ * return nothing. Full `drive` is the deliberate choice; see the README.
+ */
+export const DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive'] as const;
+
+/** Calendar: read and write events, and free/busy queries. */
+export const CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar'] as const;
+
+/**
+ * Contacts, through the People API: read and write the user own contacts.
+ *
+ * Not `contacts.readonly`, because `contacts_create` and `contacts_update` write.
+ * This does NOT cover "other contacts" — the addresses Google auto-collects from
+ * mail — which live behind a separate scope and a separate endpoint.
+ */
+export const CONTACTS_SCOPES = ['https://www.googleapis.com/auth/contacts'] as const;
+
+/** Everything requested at consent time, in one list. */
+export const SCOPES = [
+  ...GMAIL_SCOPES,
+  ...DRIVE_SCOPES,
+  ...CALENDAR_SCOPES,
+  ...CONTACTS_SCOPES,
+] as const;
+
+/** The space-separated `scope` string Google returns, as a set. */
+export function grantedScopes(scope: string | null | undefined): Set<string> {
+  return new Set((scope ?? '').split(/\s+/).filter(Boolean));
+}
+
+/**
+ * Which of the scopes this build needs are absent from a stored token.
+ *
+ * ⚠️ A refresh will NOT fix these. A refresh token is bound to the scope set
+ * granted when it was issued, so an account authorised before Drive and
+ * Calendar existed here needs a full re-consent — which is why the flow always
+ * passes `prompt: 'consent'`.
+ */
+export function missingScopes(scope: string | null | undefined): string[] {
+  const granted = grantedScopes(scope);
+  return SCOPES.filter((required) => !granted.has(required));
+}
 
 const CALLBACK_PATH = '/oauth2callback';
 /** A browser that never comes back must not hang the CLI forever. */

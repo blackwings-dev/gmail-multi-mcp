@@ -6,8 +6,9 @@
  */
 
 import { gmail as gmailApi, type gmail_v1 } from '@googleapis/gmail';
-import { getAuthenticatedClient, type GoogleOAuthClient } from '../auth/oauth.js';
-import { resolveAccount } from '../auth/token-store.js';
+import { GMAIL_SCOPES } from '../auth/oauth.js';
+import { mapGoogleError } from '../core/errors.js';
+import { AccountClientCache } from '../core/google-client.js';
 import type {
   AccountId,
   AttachmentInfo,
@@ -25,105 +26,37 @@ import { GmailMcpError } from './types.js';
 const MAX_BODY_CHARS = 60_000;
 
 /**
- * Clients are cached per account for the process lifetime.
- *
- * This is not just a speed optimisation: the cached `OAuth2Client` owns the
- * `tokens` listener that persists refreshed credentials, so rebuilding it on
- * every call would multiply listeners and re-read the token file needlessly.
+ * Gmail's client cache. The gate it carries is satisfied by every account that
+ * ever worked here — `gmail.modify` was the only scope this server used to ask
+ * for — so nothing regresses; it is wired the same way as Drive and Calendar so
+ * there is one implementation of the idea and not three.
  */
-const clientCache = new Map<AccountId, Promise<gmail_v1.Gmail>>();
-
-async function buildClient(email: AccountId): Promise<gmail_v1.Gmail> {
-  const authClient: GoogleOAuthClient = await getAuthenticatedClient(email);
-  return gmailApi({ version: 'v1', auth: authClient });
-}
+const gmailClients = new AccountClientCache<gmail_v1.Gmail>(
+  { name: 'Gmail', anyOf: GMAIL_SCOPES },
+  (authClient) => gmailApi({ version: 'v1', auth: authClient }),
+);
 
 /** Resolves an account reference (email or alias) and returns a ready client. */
-export async function gmailFor(reference: AccountId): Promise<{
+export function gmailFor(reference: AccountId): Promise<{
   email: AccountId;
   api: gmail_v1.Gmail;
 }> {
-  const account = await resolveAccount(reference);
-  let pending = clientCache.get(account.email);
-  if (!pending) {
-    pending = buildClient(account.email);
-    clientCache.set(account.email, pending);
-  }
-  try {
-    return { email: account.email, api: await pending };
-  } catch (error) {
-    // A failed build must not poison the cache for every later call.
-    clientCache.delete(account.email);
-    throw error;
-  }
+  return gmailClients.for(reference);
 }
 
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
-interface HttpishError {
-  message?: unknown;
-  code?: unknown;
-  status?: unknown;
-  response?: { status?: unknown; data?: unknown };
-}
-
 /**
- * Turns a Gaxios/Google failure into something an agent can act on.
+ * Gmail-flavoured wrapper over the shared mapper.
  *
- * The distinction that matters is 401/403 (re-authorise) versus 429/5xx (retry
- * later) versus 404 (the id is wrong): an agent that cannot tell them apart
- * will retry the one case that will never succeed.
+ * Kept as its own name because every call site inside `gmail/` reads better for
+ * it, and because the service label is what tells a user which of the three APIs
+ * refused them.
  */
 export function mapGmailError(error: unknown, account?: AccountId): GmailMcpError {
-  if (error instanceof GmailMcpError) return error;
-
-  const e = error as HttpishError;
-  const status =
-    typeof e?.response?.status === 'number'
-      ? e.response.status
-      : typeof e?.status === 'number'
-        ? e.status
-        : typeof e?.code === 'number'
-          ? e.code
-          : undefined;
-
-  const detail = typeof e?.message === 'string' ? e.message : String(error);
-
-  switch (status) {
-    case 401:
-      return new GmailMcpError(
-        'NOT_AUTHORIZED',
-        `Gmail rejected the credentials for ${account ?? 'this account'}. ` +
-          `The refresh token may have been revoked — re-run "gmail-multi-mcp setup".`,
-        account,
-      );
-    case 403:
-      return new GmailMcpError(
-        'NOT_AUTHORIZED',
-        `Access denied by Gmail: ${detail}. This is usually a missing scope or a ` +
-          `disabled Gmail API in the Google Cloud project.`,
-        account,
-      );
-    case 404:
-      return new GmailMcpError('NOT_FOUND', `Not found: ${detail}`, account);
-    case 429:
-      return new GmailMcpError(
-        'RATE_LIMITED',
-        `Gmail rate limit hit for ${account ?? 'this account'}. Wait and retry.`,
-        account,
-      );
-    default:
-      if (typeof status === 'number' && status >= 500) {
-        return new GmailMcpError(
-          'API_ERROR',
-          `Gmail is failing (HTTP ${status}): ${detail}. This is transient; retry.`,
-          account,
-        );
-      }
-      return new GmailMcpError('API_ERROR', detail, account);
-  }
+  return mapGoogleError(error, 'Gmail', account);
 }
 
 // ---------------------------------------------------------------------------

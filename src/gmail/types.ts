@@ -7,8 +7,16 @@
  * leaking into tool responses.
  */
 
-/** An account is identified by its email address. It is the primary key everywhere. */
-export type AccountId = string;
+import type { AccountId } from '../core/errors.js';
+
+/**
+ * The account id and the error taxonomy now live in `core/`: Drive and Calendar
+ * need exactly the same ones, and duplicating an error class is how two halves
+ * of a codebase stop agreeing on what a failure means. Re-exported here so every
+ * import path that already pointed at this file keeps working.
+ */
+export type { AccountId, GmailMcpErrorCode } from '../core/errors.js';
+export { GmailMcpError } from '../core/errors.js';
 
 /** OAuth client credentials. One Google Cloud project serves every account. */
 export interface OAuthCredentials {
@@ -60,6 +68,10 @@ export interface AccountStatus {
   /** True when the stored access token is past its expiry; it will auto-refresh. */
   accessTokenExpired: boolean;
   scopes: string[];
+  /** Scopes this build needs that the stored token never got. */
+  missingScopes: string[];
+  /** True when a scope is missing. A refresh will NOT fix it; only a new consent will. */
+  needsReauthorization: boolean;
   /** Populated only when a live probe succeeded. */
   emailAddress?: string;
   messagesTotal?: number;
@@ -170,33 +182,3 @@ export interface OutgoingMessage {
   references?: string;
   isHtml?: boolean;
 }
-
-/**
- * A failure that is safe and useful to show the model.
- *
- * Anything thrown as `GmailMcpError` is rendered as a tool error with its
- * message intact; anything else is reported generically, so unexpected
- * internals never leak into a response.
- */
-export class GmailMcpError extends Error {
-  readonly code: GmailMcpErrorCode;
-  readonly account?: AccountId;
-
-  constructor(code: GmailMcpErrorCode, message: string, account?: AccountId) {
-    super(message);
-    this.name = 'GmailMcpError';
-    this.code = code;
-    if (account !== undefined) this.account = account;
-  }
-}
-
-export type GmailMcpErrorCode =
-  | 'NO_CREDENTIALS'
-  | 'NO_ACCOUNTS'
-  | 'UNKNOWN_ACCOUNT'
-  | 'NOT_AUTHORIZED'
-  | 'TOKEN_REFRESH_FAILED'
-  | 'RATE_LIMITED'
-  | 'NOT_FOUND'
-  | 'INVALID_ARGUMENT'
-  | 'API_ERROR';

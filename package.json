@@ -1,11 +1,14 @@
 {
   "name": "gmail-multi-mcp",
   "version": "0.1.0",
-  "description": "MCP server for Gmail with support for multiple accounts under a single Google Cloud project.",
+  "description": "MCP server for Gmail, Drive and Calendar across multiple Google accounts under a single Google Cloud project.",
   "keywords": [
     "mcp",
     "model-context-protocol",
     "gmail",
+    "google-drive",
+    "google-calendar",
+    "google-workspace",
     "google",
     "email",
     "llm",
@@ -35,7 +38,10 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@googleapis/calendar": "^16.0.0",
+    "@googleapis/drive": "^22.0.0",
     "@googleapis/gmail": "^18.0.0",
+    "@googleapis/people": "^8.0.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "chalk": "^6.0.0",
     "open": "^11.0.2",
