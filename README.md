@@ -75,7 +75,7 @@ project, as many accounts as you want.
 ## Installation
 
 ```bash
-git clone https://github.com/<your-username>/gmail-multi-mcp.git
+git clone https://github.com/blackwings-dev/gmail-multi-mcp.git
 cd gmail-multi-mcp
 npm install
 npm run build
