@@ -263,7 +263,12 @@ export function createMcpServer(): McpServer {
               'revoked tokens that look fine on disk. Defaults to false.',
           ),
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(async ({ probe }: { probe?: boolean }) => {
       const config = await readConfig();
@@ -349,7 +354,12 @@ export function createMcpServer(): McpServer {
           .optional()
           .describe('Maximum messages to return (per account when searching all). Default 20.'),
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -387,7 +397,12 @@ export function createMcpServer(): McpServer {
         thread_id: z.string().min(1).describe('Thread id, as returned by search_emails.'),
         account: accountArg,
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(async ({ thread_id, account }: { thread_id: string; account: string }) =>
       ok(await fetchThread(account, thread_id)),
@@ -406,7 +421,12 @@ export function createMcpServer(): McpServer {
         message_id: z.string().min(1).describe('Message id, as returned by search_emails.'),
         account: accountArg,
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(async ({ message_id, account }: { message_id: string; account: string }) =>
       ok(await fetchMessage(account, message_id)),
@@ -422,7 +442,12 @@ export function createMcpServer(): McpServer {
         'Save a draft without sending it. Use this whenever the user has not explicitly ' +
         'asked for the message to go out.',
       inputSchema: composeArgs,
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     guard(async (args: ComposeArgs) => ok(await createDraft(args.account, toOutgoing(args)))),
   );
@@ -446,7 +471,12 @@ export function createMcpServer(): McpServer {
           .describe('Also copy everyone in the original Cc. Defaults to false.'),
         is_html: z.boolean().optional().describe('Send the body as text/html.'),
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -479,7 +509,12 @@ export function createMcpServer(): McpServer {
         'Compose and SEND a new email immediately. There is no undo. If the user has not ' +
         'clearly asked for it to be sent, use create_draft instead.',
       inputSchema: composeArgs,
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     guard(async (args: ComposeArgs) => ok(await sendMessage(args.account, toOutgoing(args)))),
   );
@@ -493,7 +528,12 @@ export function createMcpServer(): McpServer {
         'List the labels of an account, system and user-created, with their ids. Call this ' +
         'before label_message if you are unsure a label exists.',
       inputSchema: { account: accountArg },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(async ({ account }: { account: string }) => ok(await listLabels(account))),
   );
@@ -513,7 +553,12 @@ export function createMcpServer(): McpServer {
         add_labels: z.array(z.string().min(1)).optional().describe('Labels to apply.'),
         remove_labels: z.array(z.string().min(1)).optional().describe('Labels to remove.'),
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -545,7 +590,12 @@ export function createMcpServer(): McpServer {
         account: accountArg,
         message_id: z.string().min(1).describe('Message to move to the bin.'),
       },
-      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(async ({ account, message_id }: { account: string; message_id: string }) =>
       ok(await trashMessage(account, message_id)),
@@ -566,7 +616,12 @@ export function createMcpServer(): McpServer {
         account: accountArg,
         message_id: z.string().min(1).describe('Message to take out of the bin.'),
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(async ({ account, message_id }: { account: string; message_id: string }) =>
       ok(await untrashMessage(account, message_id)),
@@ -611,7 +666,12 @@ export function createMcpServer(): McpServer {
           .optional()
           .describe('Include files in the bin. Defaults to false.'),
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -666,7 +726,12 @@ export function createMcpServer(): McpServer {
           .optional()
           .describe('Cut the content at this many characters. Default 60000.'),
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -704,7 +769,12 @@ export function createMcpServer(): McpServer {
           .optional()
           .describe('Maximum entries to return. Default 20.'),
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -746,7 +816,12 @@ export function createMcpServer(): McpServer {
           .optional()
           .describe('Destination folder. Defaults to the root of My Drive.'),
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -794,7 +869,12 @@ export function createMcpServer(): McpServer {
           .optional()
           .describe('Destination folder. Defaults to the root of My Drive.'),
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -839,7 +919,12 @@ export function createMcpServer(): McpServer {
           .describe('Send Google’s notification email. Defaults to false.'),
         message: z.string().optional().describe('Note included in the notification email.'),
       },
-      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -904,7 +989,12 @@ export function createMcpServer(): McpServer {
           .optional()
           .describe('Free text over summary, description, location and attendees.'),
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -957,7 +1047,12 @@ export function createMcpServer(): McpServer {
         event_id: z.string().min(1).describe('Event id, as returned by calendar_list_events.'),
         calendar_id: calendarIdArg,
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -999,7 +1094,12 @@ export function createMcpServer(): McpServer {
         calendar_id: calendarIdArg,
         send_updates: sendUpdatesArg,
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -1071,7 +1171,12 @@ export function createMcpServer(): McpServer {
         calendar_id: calendarIdArg,
         send_updates: sendUpdatesArg,
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -1133,7 +1238,12 @@ export function createMcpServer(): McpServer {
         calendar_id: calendarIdArg,
         send_updates: sendUpdatesArg,
       },
-      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -1188,7 +1298,12 @@ export function createMcpServer(): McpServer {
           .describe('Ignore gaps shorter than this. Default 30.'),
         calendar_id: calendarIdArg,
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -1255,7 +1370,12 @@ export function createMcpServer(): McpServer {
           .optional()
           .describe('Maximum contacts to return (per account when searching all). Default 20.'),
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -1293,7 +1413,12 @@ export function createMcpServer(): McpServer {
         account: accountArg,
         resource_name: contactIdArg,
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(async ({ account, resource_name }: { account: string; resource_name: string }) =>
       ok(await getContact(account, resource_name)),
@@ -1323,7 +1448,12 @@ export function createMcpServer(): McpServer {
           .optional()
           .describe('The "nextPageToken" from the previous call. Omit for the first page.'),
       },
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(
       async ({
@@ -1351,7 +1481,12 @@ export function createMcpServer(): McpServer {
         account: accountArg,
         ...contactFieldArgs,
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     guard(async (args: ContactArgs) => ok(await createContact(args.account, toContactWrite(args)))),
   );
@@ -1373,7 +1508,12 @@ export function createMcpServer(): McpServer {
         resource_name: contactIdArg,
         ...contactFieldArgs,
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     guard(async (args: ContactArgs & { resource_name: string }) =>
       ok(await updateContact(args.account, args.resource_name, toContactWrite(args))),
