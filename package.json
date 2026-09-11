@@ -1,7 +1,19 @@
 {
-  "name": "gmail-multi-mcp",
+  "name": "@blackwings-dev/gmail-multi-mcp",
   "version": "0.1.0",
   "description": "MCP server for Gmail, Drive and Calendar across multiple Google accounts under a single Google Cloud project.",
+  "author": "blackwings-dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blackwings-dev/gmail-multi-mcp.git"
+  },
+  "homepage": "https://github.com/blackwings-dev/gmail-multi-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/blackwings-dev/gmail-multi-mcp/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -34,6 +46,7 @@
     "dev": "tsx src/index.ts",
     "setup": "tsx src/index.ts setup",
     "start": "node dist/index.js",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
