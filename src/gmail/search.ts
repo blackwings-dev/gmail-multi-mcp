@@ -10,12 +10,7 @@ import type { gmail_v1 } from '@googleapis/gmail';
 import { readConfig } from '../auth/token-store.js';
 import { mapWithConcurrency } from '../core/concurrency.js';
 import { gmailFor, mapGmailError, summarizeMessage } from './client.js';
-import type {
-  AccountId,
-  AccountSearchOutcome,
-  EmailSummary,
-  MultiAccountSearchResult,
-} from './types.js';
+import type { AccountId, EmailSummary, MultiAccountSearchResult } from './types.js';
 import { GmailMcpError } from './types.js';
 
 /** Gmail allows 500; this is a context-window limit, not an API one. */
@@ -31,10 +26,18 @@ const METADATA_CONCURRENCY = 6;
 /** Only the headers the summary actually shows — a smaller, faster response. */
 const SUMMARY_HEADERS = ['From', 'Subject', 'Date'];
 
-interface SortableSummary {
+export interface SortableSummary {
   summary: EmailSummary;
   /** Epoch ms. Gmail's `internalDate` is authoritative; the Date header lies. */
   sortKey: number;
+}
+
+/** A search over one account: either its messages, or why it could not answer. */
+interface AccountOutcome {
+  account: AccountId;
+  ok: boolean;
+  messages: SortableSummary[];
+  error?: string;
 }
 
 function clampMaxResults(requested: number | undefined): number {
@@ -64,13 +67,33 @@ async function hydrate(
   }));
 }
 
-/** Searches a single account. Throws on failure — the caller decides how to react. */
-export async function searchAccount(
+/**
+ * Orders messages newest first and trims to `limit`.
+ *
+ * Split out from the fetching so it can be tested without a network, because
+ * the ordering is not cosmetic: `limit` applies per account on the way in, and
+ * the merged list is cut to the same number afterwards. The sort decides *which
+ * messages survive the cut*, so getting it wrong does not reorder a page — it
+ * drops mail from it.
+ *
+ * The key is always `internalDate`, never the `Date` header. The header is
+ * written by whoever sent the message and is routinely wrong; one message
+ * claiming to be from 2099 would be enough to push a real one out of the page.
+ */
+export function mergeByRecency(perAccount: SortableSummary[][], limit: number): EmailSummary[] {
+  return perAccount
+    .flat()
+    .sort((a, b) => b.sortKey - a.sortKey)
+    .slice(0, limit)
+    .map((entry) => entry.summary);
+}
+
+/** Fetches one account's hits, still carrying their sort keys. Throws on failure. */
+async function fetchAccount(
   reference: AccountId,
   query: string,
-  maxResults?: number,
-): Promise<EmailSummary[]> {
-  const limit = clampMaxResults(maxResults);
+  limit: number,
+): Promise<SortableSummary[]> {
   const { email, api } = await gmailFor(reference);
 
   try {
@@ -86,11 +109,20 @@ export async function searchAccount(
 
     if (ids.length === 0) return [];
 
-    const hydrated = await hydrate(api, email, ids);
-    return hydrated.sort((a, b) => b.sortKey - a.sortKey).map((h) => h.summary);
+    return await hydrate(api, email, ids);
   } catch (error) {
     throw mapGmailError(error, email);
   }
+}
+
+/** Searches a single account. Throws on failure — the caller decides how to react. */
+export async function searchAccount(
+  reference: AccountId,
+  query: string,
+  maxResults?: number,
+): Promise<EmailSummary[]> {
+  const limit = clampMaxResults(maxResults);
+  return mergeByRecency([await fetchAccount(reference, query, limit)], limit);
 }
 
 /** Searches one account and captures failure as a value instead of throwing. */
@@ -98,10 +130,9 @@ async function searchAccountSafely(
   account: AccountId,
   query: string,
   maxResults: number,
-): Promise<AccountSearchOutcome> {
+): Promise<AccountOutcome> {
   try {
-    const messages = await searchAccount(account, query, maxResults);
-    return { account, ok: true, messages };
+    return { account, ok: true, messages: await fetchAccount(account, query, maxResults) };
   } catch (error) {
     return {
       account,
@@ -137,14 +168,10 @@ export async function searchAllAccounts(
   );
 
   // Re-sort the merged set: per-account ordering says nothing about the whole.
-  const merged = outcomes
-    .flatMap((outcome) => outcome.messages)
-    .sort((a, b) => {
-      const left = a.date ? Date.parse(a.date) : 0;
-      const right = b.date ? Date.parse(b.date) : 0;
-      return (Number.isNaN(right) ? 0 : right) - (Number.isNaN(left) ? 0 : left);
-    })
-    .slice(0, limit);
+  const merged = mergeByRecency(
+    outcomes.map((outcome) => outcome.messages),
+    limit,
+  );
 
   const failures = outcomes
     .filter((o) => !o.ok)
