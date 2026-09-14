@@ -1,0 +1,65 @@
+# Publishes to npm when a v* tag is pushed, using npm trusted publishing.
+#
+# There is no npm token anywhere: GitHub signs the workflow's identity through
+# OIDC and npm verifies it against the trusted publisher configured on the
+# package. That is what survives the bypass2FA deprecation — a token that skips
+# 2FA loses the right to publish around January 2027.
+#
+# The trusted publisher has to be registered on npmjs.com first, and every field
+# is case-sensitive and is not verified when saved:
+#   organization: blackwings-dev
+#   repository:   gmail-multi-mcp
+#   workflow:     publish.yml
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  # The whole point: lets the job mint the OIDC token npm authenticates with.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Trusted publishing needs Node 22.14 or later.
+          node-version: '22.14'
+          registry-url: 'https://registry.npmjs.org'
+
+      # setup-node ships whatever npm came with that Node release; trusted
+      # publishing needs 11.5.1 or later, so raise the floor explicitly.
+      - name: Ensure an npm that supports trusted publishing
+        run: |
+          npm install -g npm@latest
+          npm --version
+
+      - run: npm ci
+
+      # The tag is the release's only claim about which version this is, and a
+      # tag that disagrees with the manifest is exactly how 0.2.1 ships labelled
+      # 0.2.0. Fail here rather than find out from the registry.
+      - name: Tag must match package.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$manifest" ]; then
+            echo "tag v$tag does not match package.json $manifest" >&2
+            exit 1
+          fi
+          echo "releasing $manifest"
+
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      # No --provenance flag: npm attaches provenance automatically when a
+      # public package is published this way from a public repository.
+      - run: npm publish
