@@ -25,6 +25,7 @@ import type {
   DriveFileInfo,
   DriveFolderListing,
   DrivePermissionResult,
+  DriveSearchPage,
   DriveSearchResult,
   DriveUploadResult,
   ShareRequest,
@@ -46,7 +47,15 @@ const DEFAULT_MAX_RESULTS = 20;
 const FILE_FIELDS =
   'id,name,mimeType,size,modifiedTime,createdTime,webViewLink,owners(emailAddress),parents,shared,trashed';
 
-const LIST_FIELDS = `files(${FILE_FIELDS})`;
+const LIST_FIELDS = `incompleteSearch,files(${FILE_FIELDS})`;
+
+/**
+ * Drive hides shared-drive content unless the caller opts in, on every single
+ * call. Without these two flags `files.list` only ever returns My Drive, and a
+ * `files.create` into a shared-drive folder fails outright — no matter how much
+ * access the account really has. Spread into every request.
+ */
+const ALL_DRIVES = { supportsAllDrives: true, includeItemsFromAllDrives: true } as const;
 
 /**
  * How a Google-native document becomes text.
@@ -177,7 +186,7 @@ export async function searchDrive(
   reference: AccountId,
   parts: QueryParts,
   maxResults?: number,
-): Promise<DriveFileInfo[]> {
+): Promise<DriveSearchPage> {
   const limit = clampMaxResults(maxResults);
   const q = buildDriveQuery(parts);
   const { email, api } = await driveFor(reference);
@@ -188,8 +197,16 @@ export async function searchDrive(
       pageSize: limit,
       fields: LIST_FIELDS,
       orderBy: 'modifiedTime desc',
+      // Searching every drive is the only way to reach a shared drive without
+      // already knowing its id. Google warns it is the least efficient corpus
+      // and that it may quietly drop documents — hence `incomplete` below.
+      corpora: 'allDrives',
+      ...ALL_DRIVES,
     });
-    return (response.data.files ?? []).map((file) => toFileInfo(email, file));
+    return {
+      files: (response.data.files ?? []).map((file) => toFileInfo(email, file)),
+      incomplete: response.data.incompleteSearch === true,
+    };
   } catch (error) {
     throw mapDriveError(error, email);
   }
@@ -209,7 +226,7 @@ export async function searchAllDrives(
   const across = await runAcrossAccounts((account) => searchDrive(account, parts, limit));
 
   const merged = across.values
-    .flat()
+    .flatMap((page) => page.files)
     .sort((a, b) => {
       const left = a.modifiedTime ? Date.parse(a.modifiedTime) : 0;
       const right = b.modifiedTime ? Date.parse(b.modifiedTime) : 0;
@@ -227,6 +244,14 @@ export async function searchAllDrives(
   // Silence about a failed account would be the worst outcome: the agent would
   // read "3 files" and never learn that a fourth Drive was unreachable.
   if (across.failures.length > 0) result.failures = across.failures;
+
+  // Same reasoning one step further in: an account can answer and still have
+  // been given an incomplete list by Drive. Reporting "4 files" when Drive
+  // admits it omitted some is the confident-half-picture this server avoids.
+  const incomplete = across.outcomes
+    .filter((outcome) => outcome.ok && outcome.value?.incomplete === true)
+    .map((outcome) => outcome.account);
+  if (incomplete.length > 0) result.incompleteAccounts = incomplete;
   return result;
 }
 
@@ -246,7 +271,7 @@ export async function listDriveFolder(
   try {
     let folderName: string | null = null;
     if (target !== 'root') {
-      const meta = await api.files.get({ fileId: target, fields: 'id,name,mimeType' });
+      const meta = await api.files.get({ fileId: target, fields: 'id,name,mimeType', ...ALL_DRIVES });
       if (meta.data.mimeType !== FOLDER_MIME) {
         throw new GmailMcpError(
           'INVALID_ARGUMENT',
@@ -264,6 +289,9 @@ export async function listDriveFolder(
       fields: LIST_FIELDS,
       // Folders first, then most recently touched: the shape of a file browser.
       orderBy: 'folder,modifiedTime desc',
+      // No `corpora` here: the parent is named explicitly, so the two flags are
+      // all it takes to walk into a shared drive.
+      ...ALL_DRIVES,
     });
 
     const files = (response.data.files ?? []).map((file) => toFileInfo(email, file));
@@ -304,7 +332,7 @@ export async function readDriveFile(
   const { email, api } = await driveFor(reference);
 
   try {
-    const meta = await api.files.get({ fileId, fields: FILE_FIELDS });
+    const meta = await api.files.get({ fileId, fields: FILE_FIELDS, ...ALL_DRIVES });
     const info = toFileInfo(email, meta.data);
 
     if (info.isFolder) {
@@ -351,7 +379,10 @@ export async function readDriveFile(
           email,
         );
       }
-      const response = await api.files.get({ fileId, alt: 'media' }, { responseType: 'text' });
+      const response = await api.files.get(
+        { fileId, alt: 'media', ...ALL_DRIVES },
+        { responseType: 'text' },
+      );
       raw = response.data;
     }
 
@@ -447,6 +478,7 @@ export async function uploadToDrive(
       },
       media: { mimeType, body },
       fields: FILE_FIELDS,
+      ...ALL_DRIVES,
     });
     const info = toFileInfo(email, response.data);
     return {
@@ -492,6 +524,7 @@ export async function createGoogleDoc(
       },
       ...(content ? { media: { mimeType: 'text/plain', body: content } } : {}),
       fields: FILE_FIELDS,
+      ...ALL_DRIVES,
     });
     const info = toFileInfo(email, response.data);
     return {
@@ -531,7 +564,7 @@ export async function shareDriveFile(
   const notify = request.type === 'anyone' ? false : request.notify === true;
 
   try {
-    const meta = await api.files.get({ fileId, fields: 'id,name,webViewLink' });
+    const meta = await api.files.get({ fileId, fields: 'id,name,webViewLink', ...ALL_DRIVES });
 
     const response = await api.permissions.create({
       fileId,
@@ -544,6 +577,7 @@ export async function shareDriveFile(
         ...(request.domain ? { domain: request.domain } : {}),
       },
       fields: 'id,type,role,emailAddress,domain',
+      supportsAllDrives: true,
     });
 
     return {
