@@ -1,6 +1,6 @@
 {
   "name": "@blackwings-dev/gmail-multi-mcp",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "MCP server for Gmail, Drive and Calendar across multiple Google accounts under a single Google Cloud project.",
   "author": "blackwings-dev",
   "repository": {
