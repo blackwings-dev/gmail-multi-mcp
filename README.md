@@ -45,6 +45,13 @@ address book** you have connected. One Google Cloud project, as many accounts as
 - **Cross-account by default.** `search_emails`, `drive_search`, `calendar_list_events`,
   `calendar_find_free_time` and `contacts_search` all work across every connected account
   when you omit `account`.
+- **Shared drives included.** Drive returns only *My Drive* unless a request opts in, so
+  every call here does. `drive_search` looks across My Drive and every shared drive the
+  account can reach; `drive_list`, `drive_read`, `drive_upload` and `drive_share` all work
+  on shared-drive items.
+- **A partial file list says so.** Searching every drive lets Drive quietly omit
+  documents. When it admits that, the affected accounts come back in
+  `incompleteAccounts` instead of a count that looks complete and is not.
 - **Degrades instead of failing.** If one account's token is revoked, the others still
   return — and the broken one is reported in a `failures` field rather than silently
   dropped.
@@ -408,7 +415,7 @@ downloaded.
 
 | Tool | Description | Parameters |
 |---|---|---|
-| `drive_search` | **Without `account`, searches every Drive.** `query` is free text over name and contents; `drive_query` takes raw Drive query syntax | `query?`, `drive_query?`, `account?`, `max_results?` (1–100, default 20), `include_trashed?` |
+| `drive_search` | **Without `account`, searches every Drive.** Covers My Drive *and* shared drives. `query` is free text over name and contents; `drive_query` takes raw Drive query syntax. Returns `incompleteAccounts` when Drive admits it dropped documents — narrow the query if you see it | `query?`, `drive_query?`, `account?`, `max_results?` (1–100, default 20), `include_trashed?` |
 | `drive_read` | Reads a file as text | `file_id`, `account`, `max_chars?` (default 60000) |
 | `drive_list` | Lists a folder, sub-folders first | `account`, `folder_id?` (default `root`), `max_results?` |
 | `drive_upload` | Uploads a file. Exactly one of `content` or `local_path` | `account`, `name`, `content?`, `local_path?`, `mime_type?`, `parent_folder_id?` |

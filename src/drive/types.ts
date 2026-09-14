@@ -27,6 +27,18 @@ export interface DriveFileInfo {
   isGoogleNative: boolean;
 }
 
+/**
+ * One account's answer to a search.
+ *
+ * `incomplete` is Drive's own `incompleteSearch`: when a query spans every
+ * drive the API may return a partial list and say so. It travels with the files
+ * so the caller cannot report a count without knowing whether it is the count.
+ */
+export interface DriveSearchPage {
+  files: DriveFileInfo[];
+  incomplete: boolean;
+}
+
 export interface DriveSearchResult {
   query: string;
   accountsSearched: AccountId[];
@@ -34,6 +46,11 @@ export interface DriveSearchResult {
   results: DriveFileInfo[];
   /** Only present when at least one account failed; the rest still returned. */
   failures?: { account: AccountId; error: string }[];
+  /**
+   * Accounts whose list Drive admitted was partial. Present only when it
+   * happened; narrow the query, or search one shared drive at a time.
+   */
+  incompleteAccounts?: AccountId[];
 }
 
 export interface DriveFolderListing {

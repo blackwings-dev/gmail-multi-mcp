@@ -693,11 +693,12 @@ export function createMcpServer(): McpServer {
           ...(include_trashed === true ? { includeTrashed: true } : {}),
         };
         if (account) {
-          const files = await searchDrive(account, parts, max_results);
+          const page = await searchDrive(account, parts, max_results);
           return ok({
             accountsSearched: [account],
-            totalResults: files.length,
-            results: files,
+            totalResults: page.files.length,
+            results: page.files,
+            ...(page.incomplete ? { incompleteAccounts: [account] } : {}),
           });
         }
         return ok(await searchAllDrives(parts, max_results));
