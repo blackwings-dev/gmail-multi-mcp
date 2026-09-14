@@ -27,6 +27,8 @@ import type {
   DrivePermissionResult,
   DriveSearchPage,
   DriveSearchResult,
+  SharedDriveInfo,
+  SharedDrivesResult,
   DriveUploadResult,
   ShareRequest,
   UploadRequest,
@@ -252,6 +254,66 @@ export async function searchAllDrives(
     .filter((outcome) => outcome.ok && outcome.value?.incomplete === true)
     .map((outcome) => outcome.account);
   if (incomplete.length > 0) result.incompleteAccounts = incomplete;
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Listing shared drives
+// ---------------------------------------------------------------------------
+
+/**
+ * Lists the shared drives one account is a member of.
+ *
+ * Separate from every other tool here because a shared drive is not a file:
+ * `files.list` cannot see it at all, so without this there is no path from a
+ * drive's name to the id that `drive_list` and `drive_upload` need.
+ *
+ * Deliberately not passing `useDomainAdminAccess`: that returns every drive in
+ * the domain whether or not the account belongs to it, which answers a
+ * different question than "what can I reach".
+ */
+export async function listSharedDrives(
+  reference: AccountId,
+  maxResults?: number,
+): Promise<SharedDriveInfo[]> {
+  const limit = clampMaxResults(maxResults);
+  const { email, api } = await driveFor(reference);
+
+  try {
+    const response = await api.drives.list({
+      pageSize: limit,
+      fields: 'drives(id,name,createdTime,hidden,capabilities(canAddChildren))',
+    });
+    return (response.data.drives ?? []).map((drive) => ({
+      account: email,
+      id: drive.id ?? '',
+      name: drive.name ?? '(sin nombre)',
+      createdTime: drive.createdTime ?? null,
+      hidden: drive.hidden === true,
+      canAddChildren: drive.capabilities?.canAddChildren === true,
+    }));
+  } catch (error) {
+    throw mapDriveError(error, email);
+  }
+}
+
+/** Same, across every configured account, merged by name. */
+export async function listAllSharedDrives(
+  maxResults?: number,
+): Promise<SharedDrivesResult> {
+  const limit = clampMaxResults(maxResults);
+  const across = await runAcrossAccounts((account) => listSharedDrives(account, limit));
+
+  const merged = across.values
+    .flat()
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+
+  const result: SharedDrivesResult = {
+    accountsSearched: across.succeeded,
+    totalResults: merged.length,
+    results: merged,
+  };
+  if (across.failures.length > 0) result.failures = across.failures;
   return result;
 }
 

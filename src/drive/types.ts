@@ -28,6 +28,34 @@ export interface DriveFileInfo {
 }
 
 /**
+ * A shared drive itself, which is NOT a file.
+ *
+ * This distinction cost an afternoon once: a shared drive never appears in
+ * `files.list`, not even searched by its exact name with full access, because
+ * it is not an entry in any folder. Only `drives.list` enumerates them, and
+ * without that there is no way to go from "04 · Administracion" to the id every
+ * other Drive tool needs.
+ */
+export interface SharedDriveInfo {
+  account: AccountId;
+  id: string;
+  name: string;
+  createdTime: string | null;
+  /** Hidden from the account's Drive UI; still fully usable by id. */
+  hidden: boolean;
+  /** Whether this account may add files to it — the cheap read of write access. */
+  canAddChildren: boolean;
+}
+
+export interface SharedDrivesResult {
+  accountsSearched: AccountId[];
+  totalResults: number;
+  results: SharedDriveInfo[];
+  /** Only present when at least one account failed; the rest still returned. */
+  failures?: { account: AccountId; error: string }[];
+}
+
+/**
  * One account's answer to a search.
  *
  * `incomplete` is Drive's own `incompleteSearch`: when a query spans every

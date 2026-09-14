@@ -31,7 +31,9 @@ import { searchAccount, searchAllAccounts } from './gmail/search.js';
 import { missingScopes } from './auth/oauth.js';
 import {
   createGoogleDoc,
+  listAllSharedDrives,
   listDriveFolder,
+  listSharedDrives,
   readDriveFile,
   searchAllDrives,
   searchDrive,
@@ -801,6 +803,49 @@ export function createMcpServer(): McpServer {
         folder_id?: string;
         max_results?: number;
       }) => ok(await listDriveFolder(account, folder_id ?? 'root', max_results)),
+    ),
+  );
+
+  // --- drive_shared_drives -------------------------------------------------
+  server.registerTool(
+    'drive_shared_drives',
+    {
+      title: 'List shared drives',
+      description:
+        'List the shared drives an account can reach, with their ids. A shared drive is ' +
+        'NOT a file: it never appears in drive_search, not even searched by its exact ' +
+        'name, so this is the only way to turn a drive name into the id that drive_list, ' +
+        'drive_upload and drive_share need. Without "account", asks every configured ' +
+        'account. "canAddChildren" tells you whether that account may write to it.',
+      inputSchema: {
+        account: accountArg,
+        max_results: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe('Maximum drives to return (per account when asking all). Default 20.'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    guard(
+      async ({ account, max_results }: { account?: string; max_results?: number }) => {
+        if (account) {
+          const drives = await listSharedDrives(account, max_results);
+          return ok({
+            accountsSearched: [account],
+            totalResults: drives.length,
+            results: drives,
+          });
+        }
+        return ok(await listAllSharedDrives(max_results));
+      },
     ),
   );
 

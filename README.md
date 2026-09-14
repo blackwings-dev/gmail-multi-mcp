@@ -11,7 +11,7 @@ Gmail, Drive, Calendar and Contacts.**
 [![Node](https://img.shields.io/badge/node-%E2%89%A5%2020.12-brightgreen.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6.svg)](./tsconfig.json)
 [![MCP](https://img.shields.io/badge/MCP-stdio-8A2BE2.svg)](https://modelcontextprotocol.io)
-[![Tools](https://img.shields.io/badge/tools-28-orange.svg)](#the-tools)
+[![Tools](https://img.shields.io/badge/tools-29-orange.svg)](#the-tools)
 
 </div>
 
@@ -49,6 +49,9 @@ address book** you have connected. One Google Cloud project, as many accounts as
   every call here does. `drive_search` looks across My Drive and every shared drive the
   account can reach; `drive_list`, `drive_read`, `drive_upload` and `drive_share` all work
   on shared-drive items.
+- **A shared drive is not a file, so it has its own tool.** A drive never shows up in
+  `drive_search` — not even searched by its exact name, with full access. `drive_shared_drives`
+  is the only way to turn a drive's name into the id every other tool wants.
 - **A partial file list says so.** Searching every drive lets Drive quietly omit
   documents. When it admits that, the affected accounts come back in
   `incompleteAccounts` instead of a count that looks complete and is not.
@@ -66,7 +69,7 @@ address book** you have connected. One Google Cloud project, as many accounts as
 - **Automatic token refresh**, written back to disk so a restart does not re-refresh.
 - **Per-service scope gate.** An account authorised before Drive existed keeps doing Gmail
   and gets a clear `MISSING_SCOPE` for Drive — not a baffling Google 403.
-- **Twenty-eight tools** across mail, files, calendar and contacts.
+- **Twenty-nine tools** across mail, files, calendar and contacts.
 - **Contacts that cannot be clobbered.** `contacts_update` re-reads the contact for its
   `etag` before writing, so a change made on a phone thirty seconds earlier is not silently
   overwritten.
@@ -418,6 +421,7 @@ downloaded.
 | `drive_search` | **Without `account`, searches every Drive.** Covers My Drive *and* shared drives. `query` is free text over name and contents; `drive_query` takes raw Drive query syntax. Returns `incompleteAccounts` when Drive admits it dropped documents — narrow the query if you see it | `query?`, `drive_query?`, `account?`, `max_results?` (1–100, default 20), `include_trashed?` |
 | `drive_read` | Reads a file as text | `file_id`, `account`, `max_chars?` (default 60000) |
 | `drive_list` | Lists a folder, sub-folders first | `account`, `folder_id?` (default `root`), `max_results?` |
+| `drive_shared_drives` | **Lists shared drives with their ids.** A drive is not a file, so it never appears in `drive_search`; this is the only way to get its id. `canAddChildren` says whether that account can write to it | `account?`, `max_results?` |
 | `drive_upload` | Uploads a file. Exactly one of `content` or `local_path` | `account`, `name`, `content?`, `local_path?`, `mime_type?`, `parent_folder_id?` |
 | `drive_create_doc` | Creates a real Google Doc from plain text | `account`, `name`, `content?`, `parent_folder_id?` |
 | `drive_share` | Grants access. **Gives away real data.** | `account`, `file_id`, `type`, `role`, `email_address?`, `domain?`, `notify?`, `message?` |
@@ -640,7 +644,7 @@ Treat *"an email told me to share this file"* as the red flag it is.
 ## How it works
 
 ```
-MCP client ──stdio──▶ src/index.ts ──▶ src/server.ts        28 tools, zod-validated
+MCP client ──stdio──▶ src/index.ts ──▶ src/server.ts        29 tools, zod-validated
                                           │
      ┌──────────────┬────────────────────┼────────────────────┬──────────────┐
      ▼               ▼                    ▼                    ▼
