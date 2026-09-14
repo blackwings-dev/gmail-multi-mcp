@@ -34,11 +34,13 @@ jobs:
           node-version: '22.14'
           registry-url: 'https://registry.npmjs.org'
 
-      # setup-node ships whatever npm came with that Node release; trusted
-      # publishing needs 11.5.1 or later, so raise the floor explicitly.
+      # Node 22.14 still bundles npm 10.9, and trusted publishing needs 11.5.1.
+      # Pinned to the 11.x line rather than @latest on purpose: npm 12 requires
+      # a newer Node than trusted publishing itself does, so chasing @latest
+      # breaks this job the day a new major lands.
       - name: Ensure an npm that supports trusted publishing
         run: |
-          npm install -g npm@latest
+          npm install -g npm@^11.5.1
           npm --version
 
       - run: npm ci
