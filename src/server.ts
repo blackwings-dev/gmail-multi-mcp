@@ -8,6 +8,8 @@
  * the client. All diagnostics go to stderr, always.
  */
 
+import { createRequire } from 'node:module';
+
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -59,7 +61,19 @@ import type { AccountStatus, OutgoingMessage } from './gmail/types.js';
 import { GmailMcpError } from './gmail/types.js';
 
 export const SERVER_NAME = 'gmail-multi-mcp';
-export const SERVER_VERSION = '0.1.0';
+
+/**
+ * Read from package.json rather than written here.
+ *
+ * `npm version` only touches the manifest, so a literal in this file drifts the
+ * moment anyone cuts a release — and this constant is what the MCP handshake
+ * announces to the client, not just what `--version` prints. `../package.json`
+ * resolves to the package root from `src/` under tsx and from `dist/` after a
+ * build, and npm always ships the manifest in the tarball.
+ */
+export const SERVER_VERSION: string = (
+  createRequire(import.meta.url)('../package.json') as { version: string }
+).version;
 
 /** The MCP content shape returned by every tool here. */
 interface ToolResult {
