@@ -803,3 +803,16 @@ Please do **not** open a public issue. Contact the maintainers privately first.
 ## License
 
 [MIT](./LICENSE) — do what you like, no warranty.
+
+---
+
+## Who maintains this
+
+Built and maintained by [Black Wings](https://blackwings.dev) — software, AI and
+managed IT for companies, from Valencia, Spain. We wrote this because we needed it:
+we run several Google Workspace mailboxes and no connector could see more than one
+at a time.
+
+If it saves you the same afternoon it saved us, that is the whole point. Other things
+we have released are listed at [blackwings.dev/codigo-abierto](https://blackwings.dev/codigo-abierto)
+(in English: [blackwings.dev/en/open-source](https://blackwings.dev/en/open-source)).
